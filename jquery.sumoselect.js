@@ -117,11 +117,11 @@
                 },
 
                 prepItems: function(opts, d){
-                    var lis = [], O=this;
+                    var lis = [], O = this;
                     $(opts).each(function (i, opt) {       // parsing options to li
                         opt = $(opt);
-                        lis.push(opt.is('optgroup')?
-                            $('<li class="group '+ (opt[0].disabled?'disabled':'') +'"><label>' + opt.attr('label') +'</label><ul></ul><li>')
+                        lis.push(opt.is('optgroup') ?
+                            $('<li class="group ' + (opt[0].disabled ? 'disabled' : '') + '"><label>' + opt.attr('label') + '</label><ul></ul><li>')
                                 .find('ul')
                                 .append(O.prepItems(opt.children(), opt[0].disabled))
                                 .end()
@@ -135,14 +135,12 @@
                 //## Creates a LI element from a given option and binds events to it
                 //## returns the jquery instance of li (not inserted in dom)
                 createLi: function (opt, d) {
-                    var O = this;
+                    var li, O = this;
 
                     if(!opt.attr('value'))opt.attr('value',opt.val());
-                    // todo: remove this data val
-                    li = $('<li class="opt"><label>' + opt.text() + '</label></li>');//.data('val',opt.val());
+                    li = $('<li class="opt">'+(O.is_multi ? '<span><i></i></span>' : '')+'<label>' + opt.html() + '</label></li>');
                     li.data('opt', opt);    // store a direct reference to option.
                     opt.data('li', li);    // store a direct reference to list item.
-                    if (O.is_multi) li.prepend('<span><i></i></span>');
 
                     if (opt[0].disabled || d)
                         li = li.addClass('disabled');
@@ -161,7 +159,7 @@
                 //## Returns the selected items as string in a Multiselect.
                 getSelStr: function () {
                     // get the pre selected items.
-                    sopt = [];
+                    var sopt = [];
                     this.E.find('option:selected').each(function () { sopt.push($(this).val()); });
                     return sopt.join(settings.csvSepChar);
                 },
@@ -204,7 +202,7 @@
                     var O = this;
                     //remove all selections
                     O.E.find('option:selected').each(function () { this.selected = false; });
-                    O.optDiv.find('li.selected').removeClass('selected')
+                    O.ul.find('li.selected').removeClass('selected')
 
                     //restore selections from saved state.
                     for(var i = 0; i < O.Pstate.length; i++) {
@@ -219,9 +217,8 @@
                     if(!O.is_multi)return;
                     O.selAll = $('<p class="select-all"><span><i></i></span><label>' + settings.locale[2] + '</label></p>');
                     O.selAll.on('click',function(){
-                        O.selAll.toggleClass('selected');
-                        var opt, isSelectedAll = O.selAll.hasClass('selected');
-                        O.optDiv.find('li.opt').not('.hidden').each(function(ix,e){
+                        var opt, isSelectedAll = O.selAll.toggleClass('selected').hasClass('selected');
+                        O.ul.find('li.opt:not(.hidden)').each(function(ix,e){
                             e = $(e);
                             opt = e.data('opt')[0];
                             if(opt.selected != isSelectedAll){
@@ -251,10 +248,10 @@
                             e.stopPropagation();
                         });
                     cc.append(O.ftxt);
-                    O.optDiv.children('ul').after(P);
+                    O.ul.after(P);
 
                     O.ftxt.on('keyup.sumo',function(){
-                        var hid = O.optDiv.find('ul.options li.opt').each(function(ix,e){
+                        var hid = O.ul.find('li.opt').each(function(ix,e){
                             e = $(e);
                             if(e.text().toLowerCase().indexOf(O.ftxt.val().toLowerCase()) > -1)
                                 e.removeClass('hidden');
@@ -272,9 +269,10 @@
                     var O = this;
                     if (settings.selectAll) {
                         var sc = 0, vc = 0;
-                        O.optDiv.find('li.opt').not('.hidden').each(function (ix, e) {
-                            if ($(e).hasClass('selected')) sc++;
-                            if (!$(e).hasClass('disabled')) vc++;
+                        O.ul.find('li.opt:not(.hidden)').each(function (ix, e) {
+                            e = $(e);
+                            if (e.hasClass('selected')) sc++;
+                            if (!e.hasClass('disabled')) vc++;
                         });
                         //select all checkbox state change.
                         if (sc == vc) O.selAll.removeClass('partial').addClass('selected');
@@ -286,8 +284,10 @@
                 showOpts: function () {
                     var O = this;
                     if (O.E.attr('disabled')) return; // if select is disabled then retrun
+                    O.E.trigger('sumo:opening');
                     O.is_opened = true;
                     O.select.addClass('open');
+                    O.E.trigger('sumo:opened');
 
                     if(O.ftxt)O.ftxt.focus();
                     else O.select.focus();
@@ -303,7 +303,7 @@
                     });
 
                     if (O.is_floating) {
-                        H = O.optDiv.children('ul').outerHeight() + 2;  // +2 is clear fix
+                        H = O.ul.outerHeight() + 2;  // +2 is clear fix
                         if (O.is_multi) H = H + parseInt(O.optDiv.css('padding-bottom'));
                         O.optDiv.css('height', H);
                         $('body').addClass('sumoStopScroll');
@@ -329,8 +329,10 @@
                 hideOpts: function () {
                     var O = this;
                     if(O.is_opened){
+                        O.E.trigger('sumo:closing');
                         O.is_opened = false;
                         O.select.removeClass('open').find('ul li.sel').removeClass('sel');
+                        O.E.trigger('sumo:closed');
                         $(document).off('click.sumo');
                         O.select.focus();
                         $('body').removeClass('sumoStopScroll');
@@ -338,16 +340,16 @@
                         // clear the search
                         if(settings.search){
                             O.ftxt.val('');
-                            O.optDiv.find('ul.options li').removeClass('hidden');
-                            O.optDiv.find('.no-match').toggle(false);
+                            O.ul.find('li').removeClass('hidden');
+                            O.ul.find('.no-match').toggle(false);
                         }
                     }
                 },
                 setOnOpen: function () {
                     var O = this,
-                        li = O.optDiv.find('li.opt:not(.hidden)').eq(settings.search?0:O.E[0].selectedIndex);
+                        li = O.ul.find('li.opt:not(.hidden)').eq(settings.search?0:O.E[0].selectedIndex);
 
-                    O.optDiv.find('li.sel').removeClass('sel');
+                    O.ul.find('li.sel').removeClass('sel');
                     li.addClass('sel');
                     O.showOpts();
                 },
@@ -431,8 +433,7 @@
                         if(li.hasClass('disabled'))return;
                         txt = "";
                         if (O.is_multi) {
-                            li.toggleClass('selected');
-                            li.data('opt')[0].selected = li.hasClass('selected');
+                            li.data('opt')[0].selected = li.toggleClass('selected').hasClass('selected');
                             O.selAllState();
                         }
                         else {
@@ -455,11 +456,11 @@
                     var O = this;
                     O.placeholder = "";
                     if (O.is_multi) {
-                        sels = O.E.find(':selected').not(':disabled'); //selected options.
-
-                        for (i = 0; i < sels.length; i++) {
+                        var sizeAllOptions = O.ul.children().length,
+                            sels = O.ul.find('li.opt.selected:not(.disabled) label'); //selected options.
+                        for (var i = 0; i < sels.length; i++) {
                             if (i + 1 >= settings.csvDispCount && settings.csvDispCount) {
-                                if (sels.length == O.E.find('option').length && settings.captionFormatAllSelected) {
+                                if (settings.captionFormatAllSelected && sels.length == sizeAllOptions) {
                                     O.placeholder = settings.captionFormatAllSelected.replace(/\{0\}/g, sels.length)+',';
                                 } else {
                                     O.placeholder = settings.captionFormat.replace(/\{0\}/g, sels.length)+',';
@@ -467,15 +468,15 @@
 
                                 break;
                             }
-                            else O.placeholder += $(sels[i]).text() + ", ";
+                            else O.placeholder += $(sels[i]).html() + ", ";
                         }
                         O.placeholder = O.placeholder.replace(/,([^,]*)$/, '$1'); //remove unexpected "," from last.
                     }
                     else {
-                        O.placeholder = O.E.find(':selected').not(':disabled').text();
+                        O.placeholder = O.ul.find('li.opt.selected:not(.disabled) label').html();
                     }
 
-                    is_placeholder = false;
+                    var is_placeholder = false;
 
                     if (!O.placeholder) {
 
@@ -483,17 +484,17 @@
 
                         O.placeholder = O.E.attr('placeholder');
                         if (!O.placeholder)                  //if placeholder is there then set it
-                            O.placeholder = O.E.find('option:disabled:selected').text();
+                            O.placeholder = O.ul.find('li.opt.selected.disabled label').html();
                     }
 
-                    O.placeholder = O.placeholder ? (settings.prefix + ' ' + O.placeholder) : settings.placeholder
+                    O.placeholder = O.placeholder ? (settings.prefix + ' ' + O.placeholder) : settings.placeholder;
 
                     //set display text
                     O.caption.html(O.placeholder);
                     O.CaptionCont.attr('title', O.placeholder);
 
                     //set the hidden field if post as csv is true.
-                    csvField = O.select.find('input.HEMANT123');
+                    var csvField = O.select.find('input.HEMANT123');
                     if (csvField.length) csvField.val(O.getSelStr());
 
                     //add class placeholder if its a placeholder text.
